@@ -68,7 +68,6 @@ void execute_cmd_rec(Command *cmd_list, int output_fd){
         // Background execution, interrupts are ignored
         if (cmd_list->background){
             setpgid(0,0);
-            signal(SIGINT, SIG_IGN);
         }
 
         //If there is an output fd from a previous pipe, set output to that pipe
@@ -126,7 +125,7 @@ void execute_cmd_rec(Command *cmd_list, int output_fd){
         if (!cmd_list->background){
             waitpid(pid, NULL, 0);
         }  else {
-            printf("Background process started [%d]\n", pid)
+            printf("Background process started [%d]\n", pid);
         }
     }
 }
