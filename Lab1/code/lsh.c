@@ -40,10 +40,6 @@ void run_commands(Command *cmd_list);
 
 #define READ 0
 #define WRITE 1
-#define MAX_BG_PROCESSES 1024
-
-pid_t bg_processes[MAX_BG_PROCESSES];
-int bg_process_count = 0;
 
 void signal_handler(int sig){
     if (sig == SIGINT){
@@ -52,16 +48,7 @@ void signal_handler(int sig){
         // Reap all child processes
         pid_t pid;
         while ((pid = waitpid(-1, NULL, WNOHANG)) > 0){
-            // Remove pid from bg process array
-            for (int i = 0; i < bg_process_count; i++){
-              if (bg_processes[i] == pid){
-                for (int j = i; j < bg_process_count - 1; j++){
-                  bg_processes[j] = bg_processes[j+1];
-                }
-                bg_process_count--;
-                break;
-              }
-            }
+            printf("Process killed %d\n", pid);
         }
     }
 }
@@ -138,13 +125,8 @@ void execute_cmd_rec(Command *cmd_list, int output_fd){
         // Wait for child process if it's not running in the background
         if (!cmd_list->background){
             waitpid(pid, NULL, 0);
-        }  else { // Add child process to background array
-            if (bg_process_count < MAX_BG_PROCESSES) {
-                bg_processes[bg_process_count++] = pid;
-                printf("Background process started with PID: %d\n", pid);
-            } else {
-                fprintf(stderr, "Maximum number of background processes reached.\n");
-            }
+        }  else {
+            printf("Background process started [%d]\n", pid)
         }
     }
 }
@@ -183,13 +165,6 @@ int main(void)
     // Check for Ctrl+D 
     if (line == NULL){
       printf("\nExiting shell\n");
-
-      // Kill all background processes
-      for (int i = 0; i < bg_process_count; i++) {
-          if (kill(bg_processes[i], SIGTERM) == -1) {
-              perror("Failed to kill background process");
-          } 
-      }
       break;
     }
 
