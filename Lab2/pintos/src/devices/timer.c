@@ -29,7 +29,6 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
-static void timer_check_for_wakeup(struct thread *t, void *aux UNUSED);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
@@ -90,19 +89,33 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
-  struct thread *current_thread = thread_current();
-
+  if(ticks < 1){
+    // If ticks to sleep is 0 or negative just return (Invalid entry)
+    return;
+  }
+  //Check if the interrupt state is on, if not terminate.
   ASSERT (intr_get_level () == INTR_ON);
-  
-  if (ticks > 0){
-    enum intr_level old_level;
-    // Set the wake-up time for the current thread
-    current_thread->wakeup_time = start + ticks;
-    old_level = intr_disable ();
-    // Block the thread
-    thread_block();
-    intr_set_level(old_level);  // Restore interrupts
+  //Set nmbr of ticks to sleep in thread
+  thread_current()->ticks_to_sleep = ticks;
+  //Disable interupts and store old interrupt setting
+  enum intr_level old_level = intr_disable();
+  //Block the thread
+  thread_block();
+  //Reset to old interrupt setting (after thread is unblocked by thread_waketick)
+  intr_set_level(old_level);
+}
+
+/* Wake up blocked threads when their sleep timer is zero. 
+   Handles the sleep time tick decrementing.*/
+void thread_waketick(struct thread *thr, void *aux){
+  // Thread blocked and sleep ticks left??
+  if(thr->status == THREAD_BLOCKED && thr->ticks_to_sleep > 0){
+      //Decrement sleep ticks
+      thr->ticks_to_sleep--;
+    if(thr->ticks_to_sleep == 0){
+      // Sleep ticks 0? --> Sleep done, unblock thread (continues execution of timer_sleep)
+      thread_unblock(thr);
+    }
   }
 }
 
@@ -182,14 +195,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
-  thread_foreach(timer_check_for_wakeup, 0);
-}
-
-/* Unblocks a blocked thread if wakeup time has been reached*/
-void timer_check_for_wakeup(struct thread *t, void *aux UNUSED){ 
-  if (t->status == THREAD_BLOCKED && t->wakeup_time == timer_ticks()){
-    thread_unblock(t);  
-  }
+  //Iteratates over all threads and calls thread_waketick for all of them:
+  thread_foreach(thread_waketick,0);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
