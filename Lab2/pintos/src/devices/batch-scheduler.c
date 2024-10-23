@@ -192,22 +192,22 @@ static direction_t other_direction(direction_t this_direction) {
 }
 
 void get_slot (const task_t *task) {
-  direction_t current_dir = task->direction;
-  priority_t current_prio = task->priority;
+  direction_t task_dir = task->direction;
+  priority_t task_prio = task->priority;
 
   lock_acquire(&bus_lock); // Acquire the lock
   while((tasks_on_bus == BUS_CAPACITY) || (tasks_on_bus > 0 && current_bus_dir == other_direction(current_dir))
-  | ((current_prio == NORMAL) && (waiting_tasks[other_direction(current_dir)][PRIORITY]>0))){
+  | ((task_prio == NORMAL) && (waiting_tasks[other_direction(task_dir)][PRIORITY]>0))){
     // Block acces if:
     // - Buss full
     // - Tasks in other direction
     // - Task in other direction has Priority
-    waiting_tasks[current_dir][current_prio]++; // Inc. waiting tasks in dir, prio
-    cond_wait(&wait_dir_cond[current_dir][current_prio], &bus_lock); // Wait on condition
-    waiting_tasks[current_dir][current_prio]--; // Dec. waiting tasks in dir, prio
+    waiting_tasks[task_dir][task_prio]++; // Inc. waiting tasks in dir, prio
+    cond_wait(&wait_dir_cond[task_dir][task_prio], &bus_lock); // Wait on condition
+    waiting_tasks[task_dir][task_prio]--; // Dec. waiting tasks in dir, prio
   }
   tasks_on_bus++; // Add task on bus
-  current_bus_dir = current_dir; // Change the bus direction to that of the task
+  current_bus_dir = task_dir; // Change the bus direction to that of the task
   lock_release(&bus_lock); // Relelase the lock
 }
 
@@ -218,23 +218,23 @@ void transfer_data (const task_t *task) {
 
 void release_slot (const task_t *task) {
 
-  direction_t current_dir = task->direction;
-  direction_t other_dir = other_direction(current_dir);
+  direction_t task_dir = task->direction;
+  direction_t other_dir = other_direction(task_dir);
 
   lock_acquire(&bus_lock); // Acquire the lock
   tasks_on_bus--; // Remove task from the bus
   
-  if(waiting_tasks[current_dir][PRIORITY] > 0 ){
+  if(waiting_tasks[task_dir][PRIORITY] > 0 ){
     // If there is a task waiting in direction with priority
-    cond_signal(&wait_dir_cond[current_dir][PRIORITY],&bus_lock);
+    cond_signal(&wait_dir_cond[task_dir][PRIORITY],&bus_lock);
   } 
   else if((waiting_tasks[other_dir][PRIORITY] > 0 ) && (tasks_on_bus == 0)){
     // If there is a task waiting in the other direction with priority
     cond_signal(&wait_dir_cond[other_dir][PRIORITY],&bus_lock);
   }
-  else if(waiting_tasks[current_dir][NORMAL] > 0 ){
+  else if(waiting_tasks[task_dir][NORMAL] > 0 ){
     // If there is a task in current direction without priority
-    cond_signal(&wait_dir_cond[current_dir][NORMAL], &bus_lock);
+    cond_signal(&wait_dir_cond[task_dir][NORMAL], &bus_lock);
   } 
   else if((waiting_tasks[other_dir][NORMAL] > 0 ) && (tasks_on_bus == 0)){
     // If there is a task waiting in the other direction without priority
