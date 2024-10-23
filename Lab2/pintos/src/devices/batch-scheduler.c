@@ -194,10 +194,11 @@ static direction_t other_direction(direction_t this_direction) {
 void get_slot (const task_t *task) {
   direction_t task_dir = task->direction;
   priority_t task_prio = task->priority;
+  direction_t other_dir = other_direction(task_dir);
 
   lock_acquire(&bus_lock); // Acquire the lock
-  while((tasks_on_bus == BUS_CAPACITY) || (tasks_on_bus > 0 && current_bus_dir == other_direction(current_dir))
-  | ((task_prio == NORMAL) && (waiting_tasks[other_direction(task_dir)][PRIORITY]>0))){
+  while((tasks_on_bus == BUS_CAPACITY) || (tasks_on_bus > 0 && current_bus_dir == other_dir)
+  | ((task_prio == NORMAL) && (waiting_tasks[other_dir][PRIORITY]>0))){
     // Block acces if:
     // - Buss full
     // - Tasks in other direction
